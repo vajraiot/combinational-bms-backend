@@ -1,0 +1,77 @@
+var net = require("net");
+global.mongo = require('mongoskin');
+var serverOptions = {
+    'native_parser': true,
+    'auto_reconnect': true,
+    'poolSize': 5
+};
+var db = mongo.db("mongodb://127.0.0.1:27017/testdb", serverOptions);
+var PORT = '6969';
+var server = net.createServer({allowHalfOpen: true}); 
+// listen connection request from client side
+server.on('connection', function(stream) {
+    console.log("New Client is connected on " + stream.remoteAddress + ":" + stream.remotePort);
+    stream.setTimeout(000);
+    stream.setEncoding("utf8");
+    var data_stream = '';
+
+    stream.addListener("error", function(err) {
+        if (clients.indexOf(stream) !== -1) {
+            clients.splice(clients.indexOf(stream), 1);
+        }
+        console.log(err);
+    });
+
+    stream.addListener("data", function(data) {
+        var incomingStanza;
+        var isCorrectJson = false;
+        db.open(function(err, db) {
+            if (err) {
+                AppFun.errorOutput(stream, 'Error in connecting database..');
+            } else {
+                stream.name = stream.remoteAddress + ":" + stream.remotePort;
+                // Put this new client in the list
+                clients.push(stream);
+                console.log("CLIENTS LENGTH " + clients.length);
+                //handle json whether json is correct or not
+                try {
+                    var incomingStanza = JSON.parse(data);
+                    isCorrectJson = true;
+                } catch (e) {
+                    isCorrectJson = false;
+                }
+            // Now you can process here for each request of client
+
+    });
+    stream.addListener("end", function() {
+        stream.name = stream.remoteAddress + ":" + stream.remotePort;
+        if (clients.indexOf(stream) !== -1) {
+            clients.splice(clients.indexOf(stream), 1);
+        }
+        console.log("end of listener");
+        stream.end();
+        stream.destroy();
+    });
+
+});
+server.listen(PORT);
+
+console.log("Vent server listening on post number " + PORT);
+// on error this msg will be shown
+server.on('error', function(e) {
+    if (e.code == 'EADDRINUSE') {
+        console.log('Address in use, retrying...');
+        server.listen(5555);
+        setTimeout(function() {
+            server.close();
+            server.listen(PORT);
+        }, 1000);
+    }
+    if (e.code == 'ECONNRESET') {
+        console.log('Something Wrong. Connection is closed..');
+        setTimeout(function() {
+            server.close();
+            server.listen(PORT);
+        }, 1000);
+    }
+});
